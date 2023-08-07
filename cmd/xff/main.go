@@ -41,10 +41,13 @@ options:
 
 // Do not defer functions in this proc, because they will not be executed, due to os.Exit()
 func main() {
+	
 	appName := filepath.Base(os.Args[0])
 
-	// TODO: Add config struct and pull out flag config
 	flag := pflag.NewFlagSet(appName, pflag.ContinueOnError)
+
+	// Make Usage a no-op, because I handle this on my own
+	flag.Usage = func() {}
 
 	if err := mainE(appName, flag); err != nil {
 		if errors.Is(err, ErrHelpRequested) {
@@ -59,35 +62,51 @@ func main() {
 	}
 }
 
-// Do not call os.Exit in this function, otherwise deferred functions will not execute!
-func mainE(appName string, flag *pflag.FlagSet) error {
+type flagOptions struct {
+	modeDecimal bool
+}
+
+func parseOptions(flag *pflag.FlagSet) (flagOptions, error) {
+
+	fOpt := flagOptions{}
 
 	// Define flags
 	// ---------------------------------------------------
 
-	var modeDecimal bool
-	flag.BoolVarP(&modeDecimal, "decimal", "d", false, "Show bytes as decimal")
+	flag.BoolVarP(&fOpt.modeDecimal, "decimal", "d", false, "Show bytes as decimal")
 
 	// Set flags
 	// ---------------------------------------------------
 
-	// Make Usage a no-op, because I handle this on my own
-	flag.Usage = func() {}
-
 	if err := flag.Parse(os.Args); err != nil {
 		if errors.Is(err, pflag.ErrHelp) {
-			return ErrHelpRequested
+			return fOpt, ErrHelpRequested
 		} else {
-			return err
+			return fOpt, err
 		}
 	}
 
-	// ---------------------------------------------------
+	return fOpt, nil
+}
+
+// Do not call os.Exit in this function, otherwise deferred functions will not execute!
+func mainE(appName string, flag *pflag.FlagSet) error {
+
+	options, err := parseOptions(flag)
+	if err != nil {
+		return err
+	}
 
 	args := flag.Args()
 
 	if len(args) <= 1 {
 		return ErrUsage
+	}
+
+	// ---------------------------------------------------
+
+	if options.modeDecimal {
+		fmt.Println("Decimal mode requested")
 	}
 
 	absFilePath, err := filepath.Abs(args[1])
