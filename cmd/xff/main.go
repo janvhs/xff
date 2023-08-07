@@ -18,14 +18,20 @@ var (
 	ErrUsage               = errors.New("xff: wrong usage")
 )
 
+var (
+	Description string = "the simple hex editor"
+	Source             = "https://git.bode.fun/fxx"
+	Version            = "unknown"
+	Commit             = "unknown"
+)
+
 type FileBuffer struct {
 	Path  string
 	Value []byte
 	File  *os.File
 }
 
-// Only pass exit codes between 0 and 125
-func printUsage(w io.Writer, exitCode uint, appName string, flag *pflag.FlagSet) {
+func printUsage(w io.Writer, appName string, flag *pflag.FlagSet) {
 	options := flag.FlagUsages()
 	fmt.Fprintf(
 		w,
@@ -36,12 +42,25 @@ options:
 		appName,
 		options,
 	)
-	os.Exit(int(exitCode))
+}
+
+func printVersion(appName string) {
+	fmt.Printf(`%s - %s
+
+Source:   %s
+Version:  %s (%s)
+`,
+		appName,
+		Description,
+		Source,
+		Version,
+		Commit,
+	)
 }
 
 // Do not defer functions in this proc, because they will not be executed, due to os.Exit()
 func main() {
-	
+
 	appName := filepath.Base(os.Args[0])
 
 	flag := pflag.NewFlagSet(appName, pflag.ContinueOnError)
@@ -50,13 +69,18 @@ func main() {
 	flag.Usage = func() {}
 
 	if err := mainE(appName, flag); err != nil {
+		// TODO: Add error codes to the errors. Have 1 for generic error
 		if errors.Is(err, ErrHelpRequested) {
-			printUsage(os.Stdout, 0, appName, flag)
+			printUsage(os.Stdout, appName, flag)
+
+			os.Exit(0)
 		} else if errors.Is(err, ErrUsage) {
-			printUsage(os.Stderr, 1, appName, flag)
+			printUsage(os.Stderr, appName, flag)
 		} else {
 			fmt.Fprintln(os.Stderr, err)
 		}
+
+		os.Exit(1)
 	} else {
 		os.Exit(0)
 	}
@@ -64,6 +88,7 @@ func main() {
 
 type flagOptions struct {
 	modeDecimal bool
+	showVersion bool
 }
 
 func parseOptions(flag *pflag.FlagSet) (flagOptions, error) {
@@ -71,12 +96,13 @@ func parseOptions(flag *pflag.FlagSet) (flagOptions, error) {
 	fOpt := flagOptions{}
 
 	// Define flags
-	// ---------------------------------------------------
+	// --------------------------------------------------------------------
 
-	flag.BoolVarP(&fOpt.modeDecimal, "decimal", "d", false, "Show bytes as decimal")
+	flag.BoolVarP(&fOpt.modeDecimal, "decimal", "d", false, "Display bytes as decimal values")
+	flag.BoolVarP(&fOpt.showVersion, "version", "v", false, "Show the current version info")
 
 	// Set flags
-	// ---------------------------------------------------
+	// --------------------------------------------------------------------
 
 	if err := flag.Parse(os.Args); err != nil {
 		if errors.Is(err, pflag.ErrHelp) {
@@ -99,15 +125,22 @@ func mainE(appName string, flag *pflag.FlagSet) error {
 
 	args := flag.Args()
 
+	// Options that do not need the usage to be fulfilled
+	// --------------------------------------------------------------------
+
+	if options.showVersion {
+		printVersion(appName)
+		return nil
+	}
+
+	// --------------------------------------------------------------------
+
 	if len(args) <= 1 {
 		return ErrUsage
 	}
 
-	// ---------------------------------------------------
-
-	if options.modeDecimal {
-		fmt.Println("Decimal mode requested")
-	}
+	// Options that need the usage to be fulfilled
+	// --------------------------------------------------------------------
 
 	absFilePath, err := filepath.Abs(args[1])
 	if err != nil {
