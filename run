@@ -1,3 +1,3 @@
 #! /bin/sh
 
-go run ./cmd/xff $@
+go run ./cmd/xff "$@"
